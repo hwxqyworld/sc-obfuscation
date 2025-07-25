@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Web Page</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+    <script src="script.js" defer></script>
+</head>
+<body>
+    <input type="file" id="sb3-upload" accept=".sb3" />
+    <pre id="json-output" style="white-space: pre-wrap;display:none"></pre>
+    <script>
+        // 处理 project.json 并返回修改后的 JSON 字符串
+        const handlejson = (jsonStr) => {
+            try {
+                const parsed = JSON.parse(jsonStr);
+                let modified = parsed;
+                modified = varnameox(modified);
+                modified = delcomment(modified);
+                modified = delvarwatch(modified);
+                return JSON.stringify(modified);
+            } catch (e) {
+                return 'JSON 解析失败: ' + e.message;
+            }
+        };
+        document.addEventListener('DOMContentLoaded', function() {
+            const upload = document.getElementById('sb3-upload');
+            const output = document.getElementById('json-output');
+            let currentZip = null;
+            let originalJson = '';
+            upload.addEventListener('change', async function(e) {
+                const file = e.target.files[0];
+                if (!file) return;
+                try {
+                    const arrayBuffer = await file.arrayBuffer();
+                    const zip = await JSZip.loadAsync(arrayBuffer);
+                    currentZip = zip;
+                    if (zip.files['project.json']) {
+                        const jsonStr = await zip.files['project.json'].async('string');
+                        originalJson = jsonStr;
+                        // 显示修改后的 project.json
+                        const modifiedJson = handlejson(jsonStr);
+                        output.textContent = modifiedJson;
+                        // output.style.display = 'block';
+                        // 显示下载按钮
+                        showDownloadBtn();
+                    } else {
+                        output.textContent = 'project.json 未找到';
+                        output.style.display = 'block';
+                    }
+                } catch (err) {
+                    output.textContent = '读取失败: ' + err;
+                    output.style.display = 'block';
+                }
+            });
+
+            function showDownloadBtn() {
+                let btn = document.getElementById('download-sb3');
+                if (!btn) {
+                    btn = document.createElement('button');
+                    btn.id = 'download-sb3';
+                    btn.textContent = '下载修改后的 sb3';
+                    btn.style.marginTop = '10px';
+                    output.parentNode.insertBefore(btn, output.nextSibling);
+                }
+                btn.onclick = async function(event) {
+                    if (!currentZip || !originalJson) return;
+                    // 处理 project.json
+                    const newJson = handlejson(originalJson);
+                    if (newJson.startsWith('JSON 解析失败')) {
+                        alert(newJson);
+                        return;
+                    }
+                    currentZip.file('project.json', newJson);
+                    const newSb3 = await currentZip.generateAsync({type: 'blob'});
+                    const a = document.createElement('a');
+                    a.href = URL.createObjectURL(newSb3);
+                    a.download = 'modified.sb3';
+                    document.body.appendChild(a);
+                    a.click();
+                    setTimeout(() => {
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(a.href);
+                    }, 100);
+                };
+            }
+        });
+    </script>
+</body>
